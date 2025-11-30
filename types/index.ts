@@ -15,3 +15,19 @@ export interface Playlist {
   name: string;
   tracks: Track[];
 }
+
+export interface SearchSummary {
+  total: number;
+  showing: number;
+  topArtists: { artist: string; count: number }[];
+  topAlbums: { album: string; count: number }[];
+  bpmStats: { min: number; max: number; avg: number } | null;
+  decades: { decade: string; count: number }[];
+}
+
+export interface SearchResult {
+  type: 'full' | 'summary';
+  tracks?: Track[];
+  summary?: SearchSummary;
+  topTracks?: Track[];
+}

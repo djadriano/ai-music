@@ -10,6 +10,8 @@ import { Play, Plus, RotateCcw } from 'lucide-react';
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
 import { Loader } from '@/components/ai-elements/loader';
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool';
+import { SearchResultsSummary } from '@/components/search-results-summary';
+import { TrackList } from '@/components/track-list';
 
 interface ChatInterfaceProps {
   onPlayTrack: (track: Track) => void;
@@ -142,38 +144,69 @@ export function ChatInterface({ onPlayTrack, onAddToSetlist }: ChatInterfaceProp
                                 {part.input && <ToolInput input={part.input} />}
                                 {part.state === 'output-available' && (
                                   <>
-                                    {(toolName === 'searchMusic' || toolName === 'filterByBpm') && (
+                                    {/* Handle search and filter tools with smart responses */}
+                                    {(toolName === 'searchMusic' || toolName === 'filterByBpm' || 
+                                      toolName === 'filterByArtist' || toolName === 'filterByAlbum' || 
+                                      toolName === 'sortResults') && (
                                       <div className="p-4 space-y-3">
-                                        <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-2">
-                                          <div className="h-1 w-1 rounded-full bg-primary"></div>
-                                          Found Tracks
-                                        </h4>
-                                        <div className="space-y-2">
-                                          {Array.isArray(part.output) && part.output.map((track: Track) => (
-                                            <div key={track.id} className="group flex items-center justify-between bg-background p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors">
-                                              <div className="truncate flex-1 mr-3">
-                                                <div className="font-semibold text-sm">{track.title}</div>
-                                                <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                                  <span>{track.artist}</span>
-                                                  {track.bpm && (
-                                                    <>
-                                                      <span className="h-1 w-1 rounded-full bg-muted-foreground/30"></span>
-                                                      <span className="font-mono text-[10px] bg-secondary px-1.5 py-0.5 rounded-full">{Math.round(track.bpm)} BPM</span>
-                                                    </>
-                                                  )}
-                                                </div>
+                                        {/* Check if response is a summary type */}
+                                        {part.output?.type === 'summary' && part.output?.summary && (
+                                          <>
+                                            <SearchResultsSummary
+                                              summary={part.output.summary}
+                                              topTracks={part.output.topTracks || []}
+                                              onPlayTrack={onPlayTrack}
+                                              onAddToSetlist={onAddToSetlist}
+                                            />
+                                            {part.output.topTracks && part.output.topTracks.length > 0 && (
+                                              <div className="mt-4">
+                                                <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-2 mb-3">
+                                                  <div className="h-1 w-1 rounded-full bg-primary"></div>
+                                                  Top {part.output.topTracks.length} Matches
+                                                </h4>
+                                                <TrackList
+                                                  tracks={part.output.topTracks}
+                                                  onPlayTrack={onPlayTrack}
+                                                  onAddToSetlist={onAddToSetlist}
+                                                  maxHeight="300px"
+                                                />
                                               </div>
-                                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={() => onPlayTrack(track)}>
-                                                  <Play className="h-4 w-4" />
-                                                </Button>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={() => onAddToSetlist(track)}>
-                                                  <Plus className="h-4 w-4" />
-                                                </Button>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
+                                            )}
+                                          </>
+                                        )}
+                                        
+                                        {/* Check if response is full type with tracks */}
+                                        {part.output?.type === 'full' && part.output?.tracks && (
+                                          <>
+                                            <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-2">
+                                              <div className="h-1 w-1 rounded-full bg-primary"></div>
+                                              Found {part.output.total} Track{part.output.total !== 1 ? 's' : ''}
+                                            </h4>
+                                            <TrackList
+                                              tracks={part.output.tracks}
+                                              onPlayTrack={onPlayTrack}
+                                              onAddToSetlist={onAddToSetlist}
+                                              grouped={part.output.grouped}
+                                              maxHeight="400px"
+                                            />
+                                          </>
+                                        )}
+                                        
+                                        {/* Fallback for old array format (backward compatibility) */}
+                                        {Array.isArray(part.output) && (
+                                          <>
+                                            <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-2">
+                                              <div className="h-1 w-1 rounded-full bg-primary"></div>
+                                              Found Tracks
+                                            </h4>
+                                            <TrackList
+                                              tracks={part.output}
+                                              onPlayTrack={onPlayTrack}
+                                              onAddToSetlist={onAddToSetlist}
+                                              maxHeight="400px"
+                                            />
+                                          </>
+                                        )}
                                       </div>
                                     )}
                                     {toolName === 'addToSetlist' && (
