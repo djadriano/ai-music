@@ -1,6 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getMusicStore } from '@/lib/store';
+import { SEARCH_RESULTS } from './constants';
 
 export const searchMusic = tool({
   description: 'Search for music by title, artist, or album',
@@ -14,11 +15,11 @@ export const searchMusic = tool({
     console.log(`Found ${results.length} results`);
     
     // Smart response based on result size
-    if (results.length > 50) {
+    if (results.length > SEARCH_RESULTS.SUMMARY_THRESHOLD) {
       // Large result set - return summary
-      const topTracks = results.slice(0, 10);
-      const topArtists = searchEngine.getTopArtists(results, 5);
-      const topAlbums = searchEngine.getTopAlbums(results, 5);
+      const topTracks = results.slice(0, SEARCH_RESULTS.TOP_TRACKS_LIMIT);
+      const topArtists = searchEngine.getTopArtists(results, SEARCH_RESULTS.TOP_ARTISTS_LIMIT);
+      const topAlbums = searchEngine.getTopAlbums(results, SEARCH_RESULTS.TOP_ALBUMS_LIMIT);
       const bpmStats = searchEngine.getBpmStats(results);
       
       return {
@@ -35,7 +36,7 @@ export const searchMusic = tool({
           decades: []
         }
       };
-    } else if (results.length > 10) {
+    } else if (results.length > SEARCH_RESULTS.GROUPED_THRESHOLD) {
       // Medium result set - return all with grouping hint
       return {
         type: 'full',
@@ -67,10 +68,10 @@ export const filterByBpm = tool({
     console.log(`Found ${results.length} results`);
     
     // Smart response based on result size
-    if (results.length > 50) {
-      const topTracks = results.slice(0, 10);
-      const topArtists = searchEngine.getTopArtists(results, 5);
-      const topAlbums = searchEngine.getTopAlbums(results, 5);
+    if (results.length > SEARCH_RESULTS.SUMMARY_THRESHOLD) {
+      const topTracks = results.slice(0, SEARCH_RESULTS.TOP_TRACKS_LIMIT);
+      const topArtists = searchEngine.getTopArtists(results, SEARCH_RESULTS.TOP_ARTISTS_LIMIT);
+      const topAlbums = searchEngine.getTopAlbums(results, SEARCH_RESULTS.TOP_ALBUMS_LIMIT);
       const bpmStats = searchEngine.getBpmStats(results);
       
       return {
@@ -87,7 +88,7 @@ export const filterByBpm = tool({
           decades: []
         }
       };
-    } else if (results.length > 10) {
+    } else if (results.length > SEARCH_RESULTS.GROUPED_THRESHOLD) {
       return {
         type: 'full',
         total: results.length,
