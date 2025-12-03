@@ -1,17 +1,17 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
-import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Track } from '@/types';
-import { Play, Plus, RotateCcw } from 'lucide-react';
+import { Play, RotateCcw } from 'lucide-react';
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
 import { Loader } from '@/components/ai-elements/loader';
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool';
 import { SearchResultsSummary } from '@/components/search-results-summary';
 import { TrackList } from '@/components/track-list';
+import { useChatLogic } from './hooks/useChatLogic';
+import { cn } from '@/lib/utils';
 
 interface ChatInterfaceProps {
   onPlayTrack: (track: Track) => void;
@@ -26,60 +26,8 @@ const suggestions = [
 ];
 
 export function ChatInterface({ onPlayTrack, onAddToSetlist }: ChatInterfaceProps) {
-  const { messages, status, sendMessage, error, setMessages } = useChat();
-  const [input, setInput] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const isLoading = status === 'submitted' || status === 'streaming';
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
-
-  // Watch for tool results to trigger client actions
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === 'assistant' && lastMessage.parts) {
-      lastMessage.parts.forEach((part: any) => {
-        if (part.type.startsWith('tool-') && part.state === 'output-available') {
-          const result = part.output;
-          if (result.action === 'add' && result.track) {
-            onAddToSetlist(result.track);
-          }
-          if (result.action === 'play' && result.track) {
-            onPlayTrack(result.track);
-          }
-        }
-      });
-    }
-  }, [messages, onAddToSetlist, onPlayTrack]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim()) return;
-    
-    console.log('Form submitted', input);
-    const currentInput = input;
-    setInput('');
-    
-    await sendMessage({ text: currentInput });
-  };
-
-  const handleSuggestionClick = async (suggestion: string) => {
-    await sendMessage({ text: suggestion });
-  };
-
-  const handleReset = () => {
-    setMessages([]);
-    setInput('');
-  };
+  const { state, actions } = useChatLogic({ onPlayTrack, onAddToSetlist });
+  const { messages, input, isLoading, error, scrollRef } = state;
 
   return (
     <div className="flex flex-col h-full bg-background/50">
@@ -104,7 +52,7 @@ export function ChatInterface({ onPlayTrack, onAddToSetlist }: ChatInterfaceProp
                     <Suggestion
                       key={suggestion}
                       suggestion={suggestion}
-                      onClick={handleSuggestionClick}
+                      onClick={actions.handleSuggestionClick}
                       className="bg-card hover:bg-accent/50 border-border/50 transition-all hover:scale-[1.02]"
                     />
                   ))}
@@ -112,15 +60,14 @@ export function ChatInterface({ onPlayTrack, onAddToSetlist }: ChatInterfaceProp
               </div>
             ) : (
               messages.map((m: any) => (
-                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
+                <div key={m.id} className={cn("flex animate-in slide-in-from-bottom-2 duration-300", m.role === 'user' ? 'justify-end' : 'justify-start')}>
                   <div 
-                    className={`
-                      max-w-[85%] rounded-2xl p-4 shadow-sm
-                      ${m.role === 'user' 
+                    className={cn(
+                      "max-w-[85%] rounded-2xl p-4 shadow-sm",
+                      m.role === 'user' 
                         ? 'bg-primary text-primary-foreground rounded-br-sm' 
                         : 'bg-card border border-border/50 rounded-bl-sm'
-                      }
-                    `}
+                    )}
                   >
                     {/* Render Text Parts */}
                     {m.parts ? (
@@ -252,10 +199,10 @@ export function ChatInterface({ onPlayTrack, onAddToSetlist }: ChatInterfaceProp
       
       <div className="p-4">
         <div className="max-w-3xl mx-auto relative">
-          <form onSubmit={handleSubmit} className="relative flex items-center">
+          <form onSubmit={actions.handleSubmit} className="relative flex items-center">
             <Input 
               value={input} 
-              onChange={handleInputChange} 
+              onChange={actions.handleInputChange} 
               placeholder="Ask for music..." 
               disabled={isLoading}
               className="pr-24 pl-6 py-6 rounded-full bg-background border-border/50 shadow-lg focus-visible:ring-primary/20 text-base"
@@ -266,7 +213,7 @@ export function ChatInterface({ onPlayTrack, onAddToSetlist }: ChatInterfaceProp
                   type="button" 
                   variant="ghost" 
                   size="icon"
-                  onClick={handleReset} 
+                  onClick={actions.handleReset} 
                   disabled={isLoading}
                   title="Reset chat"
                   className="rounded-full h-10 w-10 hover:bg-destructive/10 hover:text-destructive"

@@ -42,23 +42,128 @@ Build components using **composition** rather than complex prop configurations. 
 </Accordion.Root>
 ```
 
+## Tech Stack & Styling
+
+### 1. Tailwind CSS & CVA (Class Variance Authority)
+
+Use **Tailwind CSS** for all styling. Do not use CSS modules or styled-components.
+Use **CVA** to manage component variants and `cn` (from `lib/utils`) to merge classes.
+
+```tsx
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        outline: "border border-input bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+        lg: "h-10 rounded-md px-8",
+        icon: "h-9 w-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button"
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+Button.displayName = "Button"
+```
+
+### 2. Radix UI Primitives
+
+Use **Radix UI** primitives for all interactive components (Dialogs, Popovers, Accordions, Tabs, etc.) to ensure accessibility and keyboard navigation.
+
+```tsx
+import * as DialogPrimitive from "@radix-ui/react-dialog"
+
+const Dialog = DialogPrimitive.Root
+const DialogTrigger = DialogPrimitive.Trigger
+const DialogContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <DialogPrimitive.Portal>
+    <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+    <DialogPrimitive.Content
+      ref={ref}
+      className={cn(
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </DialogPrimitive.Content>
+  </DialogPrimitive.Portal>
+))
+DialogContent.displayName = DialogPrimitive.Content.displayName
+```
+
+### 3. Icons
+
+Use **Lucide React** for all icons.
+
+```tsx
+import { ArrowRight, Check } from 'lucide-react';
+
+<ArrowRight className="ml-2 h-4 w-4" />
+```
+
 ## Component Architecture
 
-### 1. Component Structure
+### 1. Server vs Client Components
+
+- **Default to Server Components**: By default, all components in Next.js App Router are Server Components.
+- **Use 'use client' only when needed**: Add `'use client'` at the top of the file ONLY if the component:
+    - Uses React hooks (`useState`, `useEffect`, `useRef`, etc.)
+    - Uses event listeners (`onClick`, `onChange`, etc.)
+    - Uses browser-only APIs (`window`, `document`, etc.)
+- **Split Components**: If a small part of a large component needs interactivity, extract that part into its own Client Component and keep the rest as a Server Component.
+
+### 2. Component Structure
 
 Every component must have this file structure:
 
 ```
 ComponentName/
 ├── ComponentName.tsx          # Main component(s)
-├── ComponentName.types.ts     # TypeScript interfaces/types
+├── ComponentName.types.ts     # TypeScript interfaces/types (optional, can be in main file if small)
 ├── hooks/                     # Custom hooks (if needed)
-│   ├── useComponentLogic.ts
-│   └── index.ts
 └── index.ts                   # Public exports
 ```
 
-### 2. Composable Component Pattern
+### 3. Composable Component Pattern
 
 When building complex components, break them into sub-components:
 
@@ -68,27 +173,19 @@ The Root component manages shared state and context for all child components.
 
 ```tsx
 // ComponentName.tsx
-import { createContext, useContext } from 'react';
-import { RootProps, ComponentContextValue } from './ComponentName.types';
+"use client"
 
-const ComponentContext = createContext<ComponentContextValue>({
-  // Default values
-  isOpen: false,
-  setIsOpen: () => {},
-});
+import * as React from "react"
+import { cn } from "@/lib/utils"
 
-export const useComponentContext = () => {
-  const context = useContext(ComponentContext);
-  if (!context) {
-    throw new Error('Component parts must be used within Component.Root');
-  }
-  return context;
-};
+const ComponentContext = React.createContext<ComponentContextValue | undefined>(undefined)
 
-export const Root = ({ children, open, onOpenChange, ...props }: RootProps) => {
+export const Root = ({ children, className, ...props }: RootProps) => {
   return (
-    <ComponentContext.Provider value={{ isOpen: open, setIsOpen: onOpenChange }}>
-      {children}
+    <ComponentContext.Provider value={{ ... }}>
+      <div className={cn("relative", className)} {...props}>
+        {children}
+      </div>
     </ComponentContext.Provider>
   );
 };
@@ -100,33 +197,20 @@ Create focused sub-components for different parts:
 
 ```tsx
 // Trigger component
-export const Trigger = ({ children, asChild, ...props }: TriggerProps) => {
-  const { isOpen, setIsOpen } = useComponentContext();
-  
-  return (
-    <div 
-      onClick={() => setIsOpen(!isOpen)}
-      aria-expanded={isOpen}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-};
-
-// Content component
-export const Content = ({ children, ...props }: ContentProps) => {
-  const { isOpen } = useComponentContext();
-  
-  if (!isOpen) return null;
-  
-  return <div {...props}>{children}</div>;
-};
-
-// Title component
-export const Title = ({ children, ...props }: TitleProps) => {
-  return <div {...props}>{children}</div>;
-};
+export const Trigger = React.forwardRef<HTMLButtonElement, TriggerProps>(
+  ({ className, children, ...props }, ref) => {
+    return (
+      <button 
+        ref={ref}
+        className={cn("flex items-center", className)}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+);
+Trigger.displayName = "ComponentName.Trigger"
 ```
 
 #### Exports
@@ -138,78 +222,13 @@ Export all sub-components as named exports:
 export { Root } from './ComponentName';
 export { Trigger } from './ComponentName';
 export { Content } from './ComponentName';
-export { Title } from './ComponentName';
-export { Description } from './ComponentName';
-
-// Also export types
-export type { RootProps, TriggerProps, ContentProps } from './ComponentName.types';
 ```
-
-Usage:
-
-```tsx
-import * as Component from '@client/components/Component';
-
-<Component.Root open={isOpen} onOpenChange={setIsOpen}>
-  <Component.Trigger>
-    <Component.Title>Click me</Component.Title>
-  </Component.Trigger>
-  <Component.Content>
-    Content here
-  </Component.Content>
-</Component.Root>
-```
-
-### 3. Naming Conventions for Sub-Components
-
-Follow these standard naming patterns:
-
-| Component Type | Name | Purpose | Example |
-|---------------|------|---------|---------|
-| Container | `Root` | Main wrapper, manages context | `<Accordion.Root>` |
-| Interactive | `Trigger` | Element that initiates action | `<Dialog.Trigger>` |
-| Content | `Content` | Main content area | `<Accordion.Content>` |
-| Structure | `Header` | Top section | `<Card.Header>` |
-| Structure | `Body` | Main section | `<Card.Body>` |
-| Structure | `Footer` | Bottom section | `<Card.Footer>` |
-| Informational | `Title` | Primary heading | `<Dialog.Title>` |
-| Informational | `Description` | Supporting text | `<Dialog.Description>` |
-| Structural | `Item` | Individual item in a list | `<Accordion.Item>` |
-
 
 ## State Management & Hooks
 
 ### Extract Logic to Custom Hooks
 
-**Rule**: Components should only handle UI rendering. All logic goes in custom hooks.
-
-#### ❌ Don't Do This
-
-```tsx
-const Component = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  
-  useEffect(() => {
-    setLoading(true);
-    fetch('/api/data')
-      .then(res => res.json())
-      .then(data => {
-        setData(data);
-        setLoading(false);
-      });
-  }, []);
-  
-  const handleToggle = () => {
-    setIsOpen(!isOpen);
-  };
-  
-  // ... 50 more lines of logic
-  
-  return <div>...</div>;
-};
-```
+**Rule**: Components should primarily handle UI rendering. Complex logic goes in custom hooks.
 
 #### ✅ Do This
 
@@ -217,29 +236,15 @@ const Component = () => {
 // hooks/useComponentLogic.ts
 export const useComponentLogic = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { data, loading } = useData();
   
   const handleToggle = useCallback(() => {
     setIsOpen(prev => !prev);
   }, []);
   
   return {
-    state: { isOpen, data, loading },
-    actions: { handleToggle, setIsOpen },
+    isOpen,
+    handleToggle
   };
-};
-
-// ComponentName.tsx
-const Component = ({ items }: Props) => {
-  const { state, actions } = useComponentLogic();
-  
-  return (
-    <div>
-      <button onClick={actions.handleToggle}>
-        {state.isOpen ? 'Close' : 'Open'}
-      </button>
-    </div>
-  );
 };
 ```
 
@@ -248,41 +253,15 @@ const Component = ({ items }: Props) => {
 1. **Max 3-4 `useState` per component** - If you need more, extract to a hook
 2. **No complex `useEffect` in components** - Move to hooks
 3. **Group related state** - Use objects or custom hooks
-4. **Return organized values** - Separate `state` and `actions`
-
-### Common Hook Patterns
-
-```tsx
-// Media/Audio hooks
-useAudioPlayer(tracks: Track[])
-useVideoPlayer(src: string)
-
-// Data fetching hooks
-useData(endpoint: string)
-useInfiniteScroll(fetchMore: () => void)
-
-// Form hooks
-useForm<T>(initialValues: T)
-useFormValidation(schema: Schema)
-
-// UI state hooks
-useToggle(initialState: boolean)
-useDisclosure() // for modals, drawers, etc.
-
-// DOM hooks
-useEventListener(event: string, handler: Function)
-useClickOutside(ref: RefObject, handler: Function)
-useMediaQuery(query: string)
-```
 
 ## Accessibility Requirements
 
 ### Always Include ARIA Attributes
 
-Every interactive component must have proper ARIA attributes.
+Every interactive component must have proper ARIA attributes. Radix UI handles most of this automatically, which is why it is preferred.
 
 ```tsx
-// Toggle button
+// If building custom without Radix (avoid if possible):
 <button
   aria-label={isOpen ? 'Close menu' : 'Open menu'}
   aria-expanded={isOpen}
@@ -291,27 +270,6 @@ Every interactive component must have proper ARIA attributes.
 >
   {isOpen ? 'Close' : 'Open'}
 </button>
-
-// Content panel
-<div
-  id="menu-content"
-  role="region"
-  aria-labelledby="menu-trigger"
-  hidden={!isOpen}
->
-  Content
-</div>
-
-// Form input
-<label htmlFor="email-input">Email Address</label>
-<input
-  id="email-input"
-  type="email"
-  aria-required="true"
-  aria-invalid={hasError}
-  aria-describedby={hasError ? 'email-error' : undefined}
-/>
-{hasError && <span id="email-error" role="alert">{errorMessage}</span>}
 ```
 
 ### Semantic HTML
@@ -324,48 +282,12 @@ Use proper semantic HTML elements:
 - `<article>`, `<section>`, `<aside>` for content structure
 - `<h1>` - `<h6>` for headings in proper hierarchy
 
-### Keyboard Navigation
-
-Support keyboard navigation for all interactive elements:
-
-```tsx
-const handleKeyDown = (e: KeyboardEvent) => {
-  switch (e.key) {
-    case 'Enter':
-    case ' ':
-      e.preventDefault();
-      handleToggle();
-      break;
-    case 'Escape':
-      handleClose();
-      break;
-    case 'ArrowDown':
-      handleNext();
-      break;
-    case 'ArrowUp':
-      handlePrevious();
-      break;
-  }
-};
-
-<div
-  role="button"
-  tabIndex={0}
-  onKeyDown={handleKeyDown}
-  onClick={handleToggle}
->
-  Interactive element
-</div>
-```
-
 ## Performance Optimization
 
 ### Use React.memo for Stable Props
 
 ```tsx
-import { memo } from 'react';
-
-const Component = memo(({ title, content }: Props) => {
+const Component = React.memo(({ title, content }: Props) => {
   return (
     <div>
       <h2>{title}</h2>
@@ -373,7 +295,6 @@ const Component = memo(({ title, content }: Props) => {
     </div>
   );
 });
-
 Component.displayName = 'Component';
 ```
 
@@ -381,12 +302,10 @@ Component.displayName = 'Component';
 
 ```tsx
 const Component = ({ items, onSelect }: Props) => {
-  // Memoize expensive computations
   const filteredItems = useMemo(() => {
     return items.filter(item => item.active);
   }, [items]);
   
-  // Memoize callbacks passed to children
   const handleSelect = useCallback((id: string) => {
     onSelect(id);
   }, [onSelect]);
@@ -395,44 +314,4 @@ const Component = ({ items, onSelect }: Props) => {
     <List items={filteredItems} onItemClick={handleSelect} />
   );
 };
-```
-
-### Proper Dependency Arrays
-
-Always include complete dependency arrays in `useEffect`:
-
-```tsx
-// ✅ Correct
-useEffect(() => {
-  const handler = () => setTime(audio.currentTime);
-  audio.addEventListener('timeupdate', handler);
-  return () => audio.removeEventListener('timeupdate', handler);
-}, [audio]); // Include audio in deps
-
-// ❌ Wrong
-useEffect(() => {
-  fetchData(userId);
-}, []); // Missing userId dependency
-```
-
-## Testing Requirements
-
-### Unit Test Hooks Separately
-
-```tsx
-// hooks/useCounter.test.ts
-import { renderHook, act } from '@testing-library/react';
-import { useCounter } from './useCounter';
-
-describe('useCounter', () => {
-  it('should increment counter', () => {
-    const { result } = renderHook(() => useCounter());
-    
-    act(() => {
-      result.current.increment();
-    });
-    
-    expect(result.current.count).toBe(1);
-  });
-});
 ```
