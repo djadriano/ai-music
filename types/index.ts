@@ -8,6 +8,8 @@ export interface Track {
   bpm?: number;
   key?: string;
   duration?: number;
+  folder?: string; // Immediate parent folder name (e.g., "@Eurodance Brazil")
+  folderPath?: string; // Relative path from music root (e.g., "Genres/@Eurodance Brazil")
 }
 
 export interface Playlist {

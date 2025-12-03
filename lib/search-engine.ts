@@ -17,7 +17,7 @@ export class SearchEngine {
 
   private initFuse() {
     this.fuse = new Fuse(this.tracks, {
-      keys: ['title', 'artist', 'album', 'filename'],
+      keys: ['title', 'artist', 'album', 'filename', 'folder', 'folderPath'],
       threshold: 0.3, // Adjust for fuzziness
     });
   }
@@ -52,6 +52,36 @@ export class SearchEngine {
       // For now, this is a placeholder - you may need to add year to Track type
       return true; // TODO: implement when year metadata is available
     });
+  }
+
+  filterByFolder(folderName: string): Track[] {
+    const lowerFolder = folderName.toLowerCase();
+    return this.tracks.filter(track => 
+      track.folder?.toLowerCase().includes(lowerFolder)
+    );
+  }
+
+  filterByFolderPath(pathSegment: string): Track[] {
+    const lowerPath = pathSegment.toLowerCase();
+    return this.tracks.filter(track => 
+      track.folderPath?.toLowerCase().includes(lowerPath)
+    );
+  }
+
+  getTopFolders(tracks: Track[], limit: number = 10): { folder: string; count: number }[] {
+    const folderCounts = new Map<string, number>();
+    
+    tracks.forEach(track => {
+      if (track.folder) {
+        const count = folderCounts.get(track.folder) || 0;
+        folderCounts.set(track.folder, count + 1);
+      }
+    });
+
+    return Array.from(folderCounts.entries())
+      .map(([folder, count]) => ({ folder, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
   }
 
   getTopArtists(tracks: Track[], limit: number = 10): { artist: string; count: number }[] {

@@ -12,6 +12,7 @@ export class MusicManager {
 
   async scanDirectory(): Promise<Track[]> {
     const tracks: Track[] = [];
+    const rootDir = this.rootDir;
     
     try {
       await fs.access(this.rootDir);
@@ -37,6 +38,11 @@ export class MusicManager {
               const common = metadata.common;
               const format = metadata.format;
 
+              // Extract folder information
+              const parentDir = path.dirname(fullPath);
+              const folder = path.basename(parentDir);
+              const folderPath = path.relative(rootDir, parentDir);
+
               tracks.push({
                 id: fullPath,
                 filePath: fullPath,
@@ -46,7 +52,9 @@ export class MusicManager {
                 album: common.album,
                 bpm: common.bpm,
                 key: common.key,
-                duration: format.duration
+                duration: format.duration,
+                folder: folder,
+                folderPath: folderPath || '.' // Use '.' for root directory
               });
             } catch (error) {
               console.error(`Failed to parse ${fullPath}:`, error);

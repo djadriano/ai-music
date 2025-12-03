@@ -144,6 +144,78 @@ export const filterByAlbum = tool({
   },
 });
 
+export const filterByFolder = tool({
+  description: 'Filter music by folder name. Users may reference folders with @ symbol (e.g., @Eurodance Brazil) but the @ is part of the actual folder name.',
+  inputSchema: z.object({
+    folder: z.string().describe('The folder name to filter by (e.g., "@Eurodance Brazil", "House Music", etc.)'),
+  }),
+  execute: async ({ folder }) => {
+    try {
+      const { searchEngine } = await getMusicStore();
+      console.log(`Filtering by folder: ${folder}`);
+      
+      // Check if searchEngine has tracks
+      const allTracks = searchEngine.getAllTracks();
+      console.log(`Total tracks in database: ${allTracks.length}`);
+      
+      // Check if any tracks have folder information
+      const tracksWithFolder = allTracks.filter(t => t.folder);
+      console.log(`Tracks with folder info: ${tracksWithFolder.length}`);
+      
+      if (tracksWithFolder.length === 0 && allTracks.length > 0) {
+        console.warn('No tracks have folder information. Music may need to be re-scanned.');
+      }
+      
+      const results = searchEngine.filterByFolder(folder);
+      console.log(`Found ${results.length} results for folder: ${folder}`);
+      
+      // Smart response based on result size
+      if (results.length > SEARCH_RESULTS.SUMMARY_THRESHOLD) {
+        const topTracks = results.slice(0, SEARCH_RESULTS.TOP_TRACKS_LIMIT);
+        const topArtists = searchEngine.getTopArtists(results, SEARCH_RESULTS.TOP_ARTISTS_LIMIT);
+        const topAlbums = searchEngine.getTopAlbums(results, SEARCH_RESULTS.TOP_ALBUMS_LIMIT);
+        const bpmStats = searchEngine.getBpmStats(results);
+        
+        return {
+          type: 'summary',
+          total: results.length,
+          showing: topTracks.length,
+          topTracks,
+          summary: {
+            total: results.length,
+            showing: topTracks.length,
+            topArtists,
+            topAlbums,
+            bpmStats,
+            decades: []
+          }
+        };
+      } else if (results.length > SEARCH_RESULTS.GROUPED_THRESHOLD) {
+        return {
+          type: 'full',
+          total: results.length,
+          tracks: results,
+          grouped: true
+        };
+      } else {
+        return {
+          type: 'full',
+          total: results.length,
+          tracks: results
+        };
+      }
+    } catch (error) {
+      console.error('Error in filterByFolder:', error);
+      return {
+        type: 'full',
+        total: 0,
+        tracks: [],
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  },
+});
+
 export const sortResults = tool({
   description: 'Sort tracks by a specific field',
   inputSchema: z.object({
